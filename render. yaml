@@ -2,6 +2,6 @@ services:
   - type: web
     name: attendance-app
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: bash build.sh
     startCommand: python app.py
     plan: free
