@@ -1,6 +1,4 @@
 flask
-numpy
 opencv-python-headless
-face-recognition-models
-dlib==19.22.1
-face_recognition
+numpy
+Pillow
