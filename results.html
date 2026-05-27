@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Attendance Results{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>📋 Attendance History</h1>
+  <p class="subtitle">All recorded attendance sessions.</p>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+      <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:0.95rem;">Records</div>
+      <button class="btn btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.9rem;" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+
+    <div id="history-container">
+      <div style="color:#64748b; font-size:0.88rem; text-align:center; padding:2rem;">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let historyData = [];
+
+  function loadHistory() {
+    fetch('/api/history').then(r => r.json()).then(data => {
+      historyData = data;
+      const container = document.getElementById('history-container');
+
+      if (data.length === 0) {
+        container.innerHTML = '<div style="color:#64748b; font-size:0.88rem; text-align:center; padding:2rem;">No attendance records yet. Run a scan first!</div>';
+        return;
+      }
+
+      // Group by date
+      const grouped = {};
+      data.forEach(row => {
+        if (!grouped[row.date]) grouped[row.date] = [];
+        grouped[row.date].push(row);
+      });
+
+      let html = '';
+      Object.keys(grouped).sort().reverse().forEach(date => {
+        const records = grouped[date];
+        const present = records.filter(r => r.status === 'Present').length;
+        const total = records.length;
+
+        html += `
+          <div style="margin-bottom:1.2rem; border:1px solid #1e1e2e; border-radius:10px; overflow:hidden;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0.8rem 1rem; background:#0d0d14;">
+              <div>
+                <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:0.95rem;">${formatDate(date)}</span>
+              </div>
+              <div style="font-size:0.8rem; color:#64748b;">${present}/${total} present</div>
+            </div>
+            <div style="padding:0.8rem; display:flex; flex-direction:column; gap:0.4rem;">
+              ${records.map(r => `
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:0.87rem;">
+                  <span>👤 ${r.name}</span>
+                  <span class="badge badge-${r.status.toLowerCase()}">${r.status}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    });
+  }
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function exportCSV() {
+    if (!historyData.length) { showToast('No data to export', 'error'); return; }
+    const rows = [['Name', 'Date', 'Status'], ...historyData.map(r => [r.name, r.date, r.status])];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `attendance_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    showToast('CSV exported!');
+  }
+
+  loadHistory();
+</script>
+{% endblock %}

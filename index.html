@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}FaceTrack — Home{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>👋 Welcome to FaceTrack</h1>
+  <p class="subtitle">Simple attendance tracking for small teams using face recognition.</p>
+
+  <div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; padding:1rem;">
+    <a href="/register" style="text-decoration:none;">
+      <div style="background:#0a0a0f; border:1px solid #1e1e2e; border-radius:10px; padding:1.2rem; text-align:center; transition:border 0.2s;" onmouseover="this.style.borderColor='#6ee7b7'" onmouseout="this.style.borderColor='#1e1e2e'">
+        <div style="font-size:2rem; margin-bottom:0.5rem;">🧑‍💼</div>
+        <div style="font-family:'Syne',sans-serif; font-weight:700; color:#e2e8f0;">Register</div>
+        <div style="font-size:0.8rem; color:#64748b; margin-top:0.3rem;">Add team members</div>
+      </div>
+    </a>
+    <a href="/scan" style="text-decoration:none;">
+      <div style="background:#0a0a0f; border:1px solid #1e1e2e; border-radius:10px; padding:1.2rem; text-align:center; transition:border 0.2s;" onmouseover="this.style.borderColor='#6ee7b7'" onmouseout="this.style.borderColor='#1e1e2e'">
+        <div style="font-size:2rem; margin-bottom:0.5rem;">📷</div>
+        <div style="font-family:'Syne',sans-serif; font-weight:700; color:#e2e8f0;">Scan</div>
+        <div style="font-size:0.8rem; color:#64748b; margin-top:0.3rem;">Take attendance</div>
+      </div>
+    </a>
+    <a href="/results" style="text-decoration:none;">
+      <div style="background:#0a0a0f; border:1px solid #1e1e2e; border-radius:10px; padding:1.2rem; text-align:center; transition:border 0.2s;" onmouseover="this.style.borderColor='#6ee7b7'" onmouseout="this.style.borderColor='#1e1e2e'">
+        <div style="font-size:2rem; margin-bottom:0.5rem;">📋</div>
+        <div style="font-family:'Syne',sans-serif; font-weight:700; color:#e2e8f0;">Results</div>
+        <div style="font-size:0.8rem; color:#64748b; margin-top:0.3rem;">View history</div>
+      </div>
+    </a>
+    <div style="background:#0a0a0f; border:1px solid #1e1e2e; border-radius:10px; padding:1.2rem; text-align:center;">
+      <div style="font-size:2rem; margin-bottom:0.5rem;" id="member-count-icon">👥</div>
+      <div style="font-family:'Syne',sans-serif; font-weight:700; color:#e2e8f0;" id="member-count">— Members</div>
+      <div style="font-size:0.8rem; color:#64748b; margin-top:0.3rem;">Registered</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-family:'Syne',sans-serif; font-weight:700; margin-bottom:1rem; font-size:1rem;">📡 Phone Camera Setup</div>
+    <div style="font-size:0.88rem; color:#94a3b8; line-height:1.8;">
+      <p>1. Install <strong style="color:#e2e8f0;">IP Webcam</strong> (Android) or <strong style="color:#e2e8f0;">DroidCam</strong> (iOS) on your phone.</p>
+      <p>2. Connect phone and laptop to the <strong style="color:#e2e8f0;">same WiFi</strong>.</p>
+      <p>3. Open the app and tap <strong style="color:#e2e8f0;">"Start Server"</strong>.</p>
+      <p>4. Note the URL shown (e.g. <code style="color:#6ee7b7; background:#0a0a0f; padding:2px 6px; border-radius:4px;">192.168.1.5:8080</code>) and use it in the Scan page.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  fetch('/api/members').then(r => r.json()).then(data => {
+    document.getElementById('member-count').textContent = `${data.length} Members`;
+  });
+</script>
+{% endblock %}
