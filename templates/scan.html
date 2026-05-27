@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Scan Attendance{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>📷 Scan Attendance</h1>
+  <p class="subtitle">Use your laptop webcam or phone camera stream.</p>
+
+  <!-- Camera source -->
+  <div class="card">
+    <div style="font-family:'Syne',sans-serif; font-weight:700; margin-bottom:1rem; font-size:0.95rem;">Camera Source</div>
+    <div style="display:flex; gap:0.7rem; margin-bottom:1rem; flex-wrap:wrap;">
+      <button class="btn btn-secondary" id="btn-laptop" onclick="useSource('laptop')">💻 Laptop Webcam</button>
+      <button class="btn btn-secondary" id="btn-phone" onclick="useSource('phone')">📱 Phone Stream</button>
+    </div>
+    <div id="phone-url-input" style="display:none; margin-bottom:1rem;">
+      <label>Phone Stream URL</label>
+      <input type="text" id="stream-url" placeholder="e.g. http://192.168.1.5:8080/video" />
+      <div style="font-size:0.78rem; color:#64748b; margin-top:0.4rem;">From IP Webcam or DroidCam app on your phone.</div>
+    </div>
+    <button class="btn btn-primary" onclick="startStream()">▶ Start Camera</button>
+  </div>
+
+  <!-- Live feed -->
+  <div class="card">
+    <div style="position:relative; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:4/3; margin-bottom:1rem;">
+      <video id="video" autoplay playsinline style="width:100%; display:block;"></video>
+      <img id="phone-feed" style="width:100%; display:none;" />
+      <div id="scanning-badge" style="display:none; position:absolute; top:0.8rem; left:0.8rem; background:rgba(110,231,183,0.15); border:1px solid rgba(110,231,183,0.3); color:#6ee7b7; font-size:0.75rem; padding:4px 10px; border-radius:20px;">● SCANNING</div>
+    </div>
+    <canvas id="snapshot" style="display:none;"></canvas>
+    <div style="display:flex; gap:0.7rem; flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btn-scan" onclick="scanOnce()" disabled>🔍 Scan Now</button>
+      <button class="btn btn-secondary" id="btn-auto" onclick="toggleAuto()">⚡ Auto Scan</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-card" class="card" style="display:none;">
+    <div style="font-family:'Syne',sans-serif; font-weight:700; margin-bottom:1rem; font-size:1rem;">📊 Scan Results</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <div>
+        <div style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">✅ Present</div>
+        <div id="present-list" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">❌ Absent</div>
+        <div id="absent-list" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+      </div>
+    </div>
+    <div id="scan-summary" style="margin-top:1rem; font-size:0.82rem; color:#64748b;"></div>
+  </div>
+</div>
+
+<script>
+  let source = 'laptop';
+  let stream = null;
+  let autoInterval = null;
+  let isAuto = false;
+  let cameraReady = false;
+
+  function useSource(s) {
+    source = s;
+    document.getElementById('phone-url-input').style.display = s === 'phone' ? 'block' : 'none';
+    document.getElementById('btn-laptop').style.background = s === 'laptop' ? '#6ee7b7' : '#1e1e2e';
+    document.getElementById('btn-laptop').style.color = s === 'laptop' ? '#0a0a0f' : '#e2e8f0';
+    document.getElementById('btn-phone').style.background = s === 'phone' ? '#6ee7b7' : '#1e1e2e';
+    document.getElementById('btn-phone').style.color = s === 'phone' ? '#0a0a0f' : '#e2e8f0';
+  }
+
+  async function startStream() {
+    if (source === 'laptop') {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('video').srcObject = stream;
+        document.getElementById('video').style.display = 'block';
+        document.getElementById('phone-feed').style.display = 'none';
+        cameraReady = true;
+        document.getElementById('btn-scan').disabled = false;
+        showToast('Laptop camera started!');
+      } catch (e) {
+        showToast('Camera error: ' + e.message, 'error');
+      }
+    } else {
+      // For phone stream — we use img refresh trick
+      const url = document.getElementById('stream-url').value.trim();
+      if (!url) { showToast('Enter the stream URL first!', 'error'); return; }
+      document.getElementById('video').style.display = 'none';
+      const img = document.getElementById('phone-feed');
+      img.src = url;
+      img.style.display = 'block';
+      cameraReady = true;
+      document.getElementById('btn-scan').disabled = false;
+      showToast('Phone stream started!');
+    }
+  }
+
+  function captureFrame() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('snapshot');
+
+    if (source === 'laptop') {
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+    } else {
+      const img = document.getElementById('phone-feed');
+      canvas.width = img.naturalWidth || 640;
+      canvas.height = img.naturalHeight || 480;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+    }
+    return canvas.toDataURL('image/jpeg');
+  }
+
+  function scanOnce() {
+    if (!cameraReady) { showToast('Start the camera first!', 'error'); return; }
+    const imageData = captureFrame();
+    document.getElementById('scanning-badge').style.display = 'block';
+
+    fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData })
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('scanning-badge').style.display = 'none';
+      if (!data.success) { showToast(data.error, 'error'); return; }
+      showResults(data);
+    });
+  }
+
+  function showResults(data) {
+    document.getElementById('results-card').style.display = 'block';
+
+    const pList = document.getElementById('present-list');
+    const aList = document.getElementById('absent-list');
+    pList.innerHTML = '';
+    aList.innerHTML = '';
+
+    data.present.forEach(name => {
+      pList.innerHTML += `<div style="font-size:0.88rem; padding:0.35rem 0.6rem; background:rgba(110,231,183,0.07); border-radius:6px; border:1px solid rgba(110,231,183,0.15); color:#6ee7b7;">${name}</div>`;
+    });
+
+    data.absent.forEach(name => {
+      aList.innerHTML += `<div style="font-size:0.88rem; padding:0.35rem 0.6rem; background:rgba(248,113,113,0.07); border-radius:6px; border:1px solid rgba(248,113,113,0.15); color:#f87171;">${name}</div>`;
+    });
+
+    if (data.present.length === 0) pList.innerHTML = '<div style="color:#64748b; font-size:0.82rem;">None detected</div>';
+    if (data.absent.length === 0) aList.innerHTML = '<div style="color:#64748b; font-size:0.82rem;">All present! 🎉</div>';
+
+    document.getElementById('scan-summary').textContent =
+      `${data.faces_detected} face(s) detected · ${data.present.length}/${data.total} present · Saved to history`;
+  }
+
+  function toggleAuto() {
+    isAuto = !isAuto;
+    const btn = document.getElementById('btn-auto');
+    if (isAuto) {
+      if (!cameraReady) { showToast('Start the camera first!', 'error'); isAuto = false; return; }
+      autoInterval = setInterval(scanOnce, 5000);
+      btn.textContent = '⏹ Stop Auto';
+      btn.style.background = '#f87171';
+      btn.style.color = '#fff';
+      showToast('Auto scan every 5 seconds');
+    } else {
+      clearInterval(autoInterval);
+      btn.textContent = '⚡ Auto Scan';
+      btn.style.background = '#1e1e2e';
+      btn.style.color = '#e2e8f0';
+    }
+  }
+
+  useSource('laptop');
+</script>
+{% endblock %}
