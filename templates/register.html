@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Register Member{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>🧑‍💼 Register Member</h1>
+  <p class="subtitle">Add a team member by capturing their face.</p>
+
+  <div class="card">
+    <div style="margin-bottom:1rem;">
+      <label>Full Name</label>
+      <input type="text" id="member-name" placeholder="e.g. Juan dela Cruz" />
+    </div>
+
+    <div style="margin-bottom:1rem;">
+      <label>Camera</label>
+      <div style="position:relative; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:4/3;">
+        <video id="video" autoplay playsinline style="width:100%; display:block;"></video>
+        <canvas id="overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
+        <div id="face-hint" style="position:absolute; bottom:0.8rem; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:#6ee7b7; font-size:0.78rem; padding:4px 12px; border-radius:20px; white-space:nowrap;">Position face in frame</div>
+      </div>
+    </div>
+
+    <canvas id="snapshot" style="display:none;"></canvas>
+
+    <div style="display:flex; gap:0.7rem; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="startCamera()">📷 Start Camera</button>
+      <button class="btn btn-primary" onclick="capture()">✅ Capture & Register</button>
+    </div>
+  </div>
+
+  <!-- Members list -->
+  <div class="card">
+    <div style="font-family:'Syne',sans-serif; font-weight:700; margin-bottom:1rem; font-size:1rem;">Registered Members</div>
+    <div id="members-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+    <div id="no-members" style="color:#64748b; font-size:0.88rem; display:none;">No members yet. Register your first one!</div>
+  </div>
+</div>
+
+<script>
+  let stream = null;
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      document.getElementById('video').srcObject = stream;
+    } catch (e) {
+      showToast('Could not access camera: ' + e.message, 'error');
+    }
+  }
+
+  function capture() {
+    const name = document.getElementById('member-name').value.trim();
+    if (!name) { showToast('Enter a name first!', 'error'); return; }
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('snapshot');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const imageData = canvas.toDataURL('image/jpeg');
+
+    fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, image: imageData })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+        document.getElementById('member-name').value = '';
+        loadMembers();
+      } else {
+        showToast(data.error, 'error');
+      }
+    });
+  }
+
+  function loadMembers() {
+    fetch('/api/members').then(r => r.json()).then(members => {
+      const list = document.getElementById('members-list');
+      const empty = document.getElementById('no-members');
+      list.innerHTML = '';
+      if (members.length === 0) { empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      members.forEach(m => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0.8rem; background:#0a0a0f; border-radius:8px; border:1px solid #1e1e2e;';
+        div.innerHTML = `
+          <span style="font-size:0.9rem;">👤 ${m.name}</span>
+          <button class="btn btn-danger" style="padding:0.3rem 0.7rem; font-size:0.78rem;" onclick="deleteMember('${m.name}')">Remove</button>
+        `;
+        list.appendChild(div);
+      });
+    });
+  }
+
+  function deleteMember(name) {
+    if (!confirm(`Remove ${name}?`)) return;
+    fetch(`/api/delete/${name}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(d => { if (d.success) { showToast(`${name} removed`); loadMembers(); } });
+  }
+
+  startCamera();
+  loadMembers();
+</script>
+{% endblock %}
